@@ -1,0 +1,209 @@
+Lazy Parsing
+Or How I Learned To Stop Worrying and Love json.RawMessage
+
+Aidan Coyle
+Supporting Services
+acoyle@enova.com
+
+* Basic JSON Parsing
+
+We're assuming you're familiar with basic JSON parsing in Go.
+
+.code basic.json
+
+* Standard Parsing
+
+We can use the standard library `encoding/json` in combination with struct tags to marshal things with a known shape.
+
+.code basic.go /START OMIT/,/END OMIT/
+
+* Indeterminate JSON
+
+But what if the shape of our json might vary at runtime?
+
+.code indeterminate.json
+
+* Union Type
+
+We can define a type that includes all the possible keys we might need.
+
+.code indeterminate_union.go /STRUCTS OMIT/,/END STRUCTS OMIT/
+
+* Union Type
+
+To use it we just need to check the type field first.
+
+.code indeterminate_union.go /USAGE OMIT/,/END USAGE OMIT/
+
+* Union Type
+
+Pros
+
+- No overhead on our standard `json.Unmarshal`
+
+Cons
+
+- What happens when this gets really large?
+- What happens when two keys have a type collision?
+- How can we tell whether fields were empty or not?
+- What about when we want to marshal back to JSON?
+
+* map[string]interface{}
+
+We can use `map[string]interface{}` to allow us to unmarshal almost everything without having to worry about the structure.
+
+.code indeterminate_map.go /STRUCTS OMIT/,/END STRUCTS OMIT/
+
+* map[string]interface{}
+
+To actually use it we need to cast to get the data back out
+
+.code indeterminate_map.go /USAGE OMIT/,/END USAGE OMIT/
+
+* map[string]interface{}
+
+Pros
+
+- We have to define very little
+
+Cons
+
+- We have to cast whenever we want to get our data back
+- What if we want user defined types?
+- What if the thing we don't know about isn't a map?
+
+* Interlude on the structure of JSON
+
+Our two top level types are `object`
+
+.image object.gif
+
+And `array`
+
+.image array.gif
+
+* Interlude on the structure of JSON
+
+The contents of those things are instances of `value`, which can be an `object` or `array` (or something else)
+
+.image value.gif
+
+Essentially this means that everything we're dealing with is a `value`.
+
+* How Ruby does it so cleanly
+
+In ruby we can easily translate these types
+
+- `string` is a ruby `String`
+- `number` is a ruby `Float`
+- `true`, `false`, and `null` all have easy corresponding values
+- `object` is a ruby `Hash`
+- `array` is a ruby `Array`
+
+Which means `JSON.parse` can easily and completely translate any JSON document to the corresponding types in ruby.
+
+* Why Go can't do what Ruby does
+
+The issue is that ruby allows us to have values in our hashes and arrays that are not all of the same type.
+
+The best we can do natively is `map[string]interface{}` and `[]interface{}`, which runs into the issues we saw previously.
+
+We could try to define some kind of `Value` type, but there's essentially no interface that's common to all the types it contains.
+
+* json.RawMessage as value
+
+The standard library allows us to use `json.RawMessage` to denote json that we don't want to parse into a concrete type yet.
+
+It's just an alias for `[]byte` but it defines `MarhsalJSON` and `UnmarshalJSON` to do nothing.
+
+This allows us to use json.RawMessage whenever we have a value that we don't know the type of.
+
+We can parse the value into a concrete type later, once we have enough information to decide what it _should_ be. 
+
+* json.RawMessage solution
+
+The first step is to stop trying to parse the `payment_details` field and use `json.RawMessage` instead.
+
+.code indeterminate_rawmessage.go /STRUCTS OMIT/,/END STRUCTS OMIT/
+
+* json.RawMessage solution
+
+The next step is to define internal types that represent each of the actual types we can get
+
+.code indeterminate_rawmessage.go /INTERNALS OMIT/,/END INTERNALS OMIT/
+
+* json.RawMessage solution
+
+Last to actually use our code, we just use the information we now have to marshal the payment details correctly.
+
+.code indeterminate_rawmessage.go /USAGE OMIT/,/END USAGE OMIT/
+
+* json.RawMessage solution
+
+Pros
+
+- Uses the type system to our advantage
+- Marhsals back to JSON fine
+- Can deal with any type or structure
+
+Cons
+
+- Requires us to plan through the possbilities beforehand
+- Truly unknown structure still requires guess and check
+
+* json.RawMessage beautification
+
+One of the issues with all this setup is that the "simple" path to just extract the entire object is more complicated than a single step.
+
+We can fix this using the standard library's `json.Unmarshaler` (and `json.Marhsaler`) interfaces.
+
+* json.RawMessage beautification
+
+First we define `Payment` in terms of two internal embedded types. `paymentData` holds the data and the `Detail` interface provides the `Execute()` method
+
+.code indeterminate_beautiful.go /STRUCTS OMIT/,/END STRUCTS OMIT/
+
+* json.RawMessage beautification
+
+Then define `UnmarshalJSON` to populate the correct internal types
+
+.code indeterminate_beautiful.go /UNMARSHAL OMIT/,/END UNMARSHAL OMIT/
+
+* json.RawMessage beautification
+
+We can define `MarshalJSON` too for good measure
+
+.code indeterminate_beautiful.go /\sMARSHAL OMIT/,/END MARSHAL OMIT/
+
+* json.RawMessage beautification
+
+And now our main function is about as beautiful as it can be. We can natively marshal and unmarshal to our type and get the correct behaviour despite the varying possibilities in the input.
+
+.code indeterminate_beautiful.go /MAIN OMIT/,/END MAIN OMIT/
+
+* A Benchmark
+
+Is adding all of this extra logic going to add overhead on our end?
+
+A quick benchmark should verify that we're ok.
+
+.code compare/compare_test.go /BENCH OMIT/,/END BENCH OMIT/
+
+* The Results
+
+We use only slightly more memory and time than the simplest implementation.
+
+.code compare/results.txt
+
+This makes sense given that what we're doing is basically what `json.Unmarshal` is doing under the hood, but we have to "pre" check while we're parsing.
+
+Important to note, we're only eating cost when we're parsing the entire document, if we only want a small part of a large payload this approach can actually be an efficiency gain.
+
+* json.RawMessage in the wild
+
+We use this in a few places in production already where being lazy makes our lives easier.
+
+- Credit Report lambda frameowrk can generically operate on json.RawMessage to find what it needs and leave the specifics to different implementations.
+- NOI lambda looks at the results of several different models and looks at the model name to decide how to parse the body.
+- Helios doesn't need to know anything about the data it's being given, it just passes that data along to colossus.
+

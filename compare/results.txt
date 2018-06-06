@@ -1,0 +1,6 @@
+goos: darwin
+goarch: amd64
+BenchmarkNatural-8   	   20000	     75511 ns/op	   12852 B/op	     176 allocs/op
+BenchmarkMap-8       	   30000	     46775 ns/op	   10979 B/op	     204 allocs/op
+PASS
+ok  	_/Users/acoyle/side/json_talk/compare	4.161s

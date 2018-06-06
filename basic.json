@@ -1,0 +1,16 @@
+{
+    "payments": [
+        {
+            "id": "12345",
+            "amount": "3.50",
+            "to": "nessie",
+            "from": "packrat386"
+        },
+        {
+            "id": "12346",
+            "amount": "0.02",
+            "to": "packrat386",
+            "from": "mlarraz"
+        }
+    ]
+}
