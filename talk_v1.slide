@@ -114,7 +114,7 @@ We could try to define some kind of `Value` type, but there's essentially no int
 
 The standard library allows us to use `json.RawMessage` to denote json that we don't want to parse into a concrete type yet.
 
-It's just an alias for `[]byte` but it defines `MarhsalJSON` and `UnmarshalJSON` to do nothing.
+It's just an alias for `[]byte` but it defines `MarshalJSON` and `UnmarshalJSON` to do nothing.
 
 This allows us to use json.RawMessage whenever we have a value that we don't know the type of.
 
@@ -143,7 +143,7 @@ Last to actually use our code, we just use the information we now have to marsha
 Pros
 
 - Uses the type system to our advantage
-- Marhsals back to JSON fine
+- Marshals back to JSON fine
 - Can deal with any type or structure
 
 Cons
@@ -155,7 +155,7 @@ Cons
 
 One of the issues with all this setup is that the "simple" path to just extract the entire object is more complicated than a single step.
 
-We can fix this using the standard library's `json.Unmarshaler` (and `json.Marhsaler`) interfaces.
+We can fix this using the standard library's `json.Unmarshaler` (and `json.Marshaler`) interfaces.
 
 * json.RawMessage beautification
 
@@ -203,7 +203,7 @@ Important to note, we're only eating cost when we're parsing the entire document
 
 We use this in a few places in production already where being lazy makes our lives easier.
 
-- Credit Report lambda frameowrk can generically operate on json.RawMessage to find what it needs and leave the specifics to different implementations.
+- Credit Report lambda framework can generically operate on json.RawMessage to find what it needs and leave the specifics to different implementations.
 - NOI lambda looks at the results of several different models and looks at the model name to decide how to parse the body.
-- Helios doesn't need to know anything about the data it's being given, it just passes that data along to colossus.
+- Helios doesn't need to know anything about the data it's being given, it just passes that data along to Colossus.
 
